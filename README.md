@@ -1,6 +1,8 @@
 # JIRA MCP Server
 
-A professional **Model Context Protocol (MCP)** server for JIRA that enables AI assistants to analyze JIRA issues, generate reports, and provide insights about your projects.
+A professional **Model Context Protocol (MCP)** HTTP server for JIRA that enables AI assistants to analyze JIRA issues, generate reports, and provide insights about your projects.
+
+**Version 2.0.0** - Modern implementation using HTTP transport with Express and streamable HTTP protocol.
 
 ## 🌟 Features
 
@@ -21,6 +23,26 @@ A professional **Model Context Protocol (MCP)** server for JIRA that enables AI 
 - **JIRA API Token**: Generated from your JIRA account settings
 
 ## 🚀 Quick Start
+
+### Option 1: Docker (Recommended for Production)
+
+The easiest way to run the server on any machine:
+
+```bash
+# 1. Configure environment
+cp .env.docker .env
+# Edit .env and set your JIRA_BASE_URL
+
+# 2. Run with Docker Compose
+docker-compose up -d
+
+# 3. Check status
+docker-compose logs -f
+```
+
+See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
+
+### Option 2: Local Development
 
 ### 1. Installation
 
@@ -43,15 +65,15 @@ Create a `.env` file in the project root:
 cp .env.template .env
 ```
 
-Edit `.env` with your JIRA credentials:
+Edit `.env` with your JIRA base URL:
 
 ```bash
 JIRA_BASE_URL=https://your-domain.atlassian.net
-JIRA_EMAIL=your-email@company.com
-JIRA_API_TOKEN=your-api-token
+PORT=3000  # Optional, defaults to 3000
+CORS_ORIGIN=*  # Optional, defaults to *
 ```
 
-The server automatically loads these variables from the `.env` file.
+**Note:** In version 2.0, credentials (email and API token) are passed via HTTP headers on each request, not stored in the `.env` file.
 
 #### How to Get Your JIRA API Token:
 
@@ -67,6 +89,12 @@ The server automatically loads these variables from the `.env` file.
 npm start
 ```
 
+The server will start on `http://0.0.0.0:3000` (or your configured PORT).
+
+Endpoints:
+- **MCP endpoint**: `http://localhost:3000/mcp`
+- **Health check**: `http://localhost:3000/health`
+
 Or for development with auto-rebuild:
 
 ```bash
@@ -75,22 +103,25 @@ npm run watch
 
 ## � Integration with AI Assistants
 
-This is a **Stdio MCP Server** that works with any MCP-compatible AI assistant:
+This is an **HTTP MCP Server** that works with any MCP-compatible AI assistant that supports HTTP transport.
 
-### Claude Desktop
-See [config.example.js](config.example.js) for Claude Desktop configuration examples.
+### Authentication
 
-### Goose AI
-See [GOOSE_INTEGRATION.md](GOOSE_INTEGRATION.md) for complete Goose setup guide.
+The server accepts JIRA credentials via HTTP headers on each request:
+- **Authorization**: `Bearer YOUR_JIRA_API_TOKEN` (or just `YOUR_JIRA_API_TOKEN`)
+- **X-JIRA-Email**: `your-email@company.com`
 
-Quick Goose setup - add to `~/.config/goose/profiles.yaml`:
-```yaml
-mcp:
-  jira-server:
-    command: node
-    args:
-      - /Users/rsinghai/my_space/learning/MCP_Servers/JIRA_MCP/build/index.js
-```
+Alternatively, credentials can be passed as query parameters:
+- `?email=your-email@company.com&token=YOUR_JIRA_API_TOKEN`
+
+### MCP Clients
+
+Configure your MCP client to use the HTTP endpoint:
+- **Endpoint**: `http://localhost:3000/mcp`
+- **Method**: POST
+- **Headers**: Include Authorization and X-JIRA-Email headers
+
+See [config.example.js](config.example.js) for configuration examples (note: these may need updates for HTTP transport).
 
 ## �🛠️ Available Tools
 
@@ -173,9 +204,14 @@ Generate a comprehensive project/sprint report.
 ### 8. `jira_calculate_velocity`
 Calculate team velocity and completion metrics.
 
-**Parameters:**
-- `jql` (required): JQL query to filter issues
-- `timeFrameDays` (optional): Days to analyze (default: 30)
+**PaDockerfile            # Docker container definition
+├── docker-compose.yml    # Docker Compose configuration
+├── .dockerignore         # Docker build exclusions
+├── .env.template         # Environment variable template
+├── .env.docker           # Docker environment template
+├── config.example.js     # Example configurations
+├── test-init.js          # Server initialization test
+├── DOCKER.md            # Docker deployment guide: 30)
 - `maxResults` (optional): Maximum issues to analyze (default: 200)
 
 **Returns:**
@@ -188,11 +224,14 @@ Calculate team velocity and completion metrics.
 ```
 JIRA_MCP/
 ├── src/
-│   ├── index.ts           # Main MCP server implementation
+│   ├── index.ts           # Main HTTP MCP server implementation
 │   └── JiraSchema.ts      # JIRA field definitions and constants
-├── build/                 # Compiled JavaScript output
+├── build/                 # Compiled JavaScript output (not in repo)
 ├── package.json          # Project dependencies
 ├── tsconfig.json         # TypeScript configuration
+├── .env.template         # Environment variable template
+├── config.example.js     # Example configurations
+├── test-init.js          # Server initialization test
 └── README.md            # This file
 ```
 
@@ -209,24 +248,37 @@ JIRA_MCP/
 
 The server is built with:
 - **TypeScript** for type safety and better developer experience
-- **@modelcontextprotocol/sdk** for MCP protocol implementation
+- **@modelcontextprotocol/sdk** (v1.6.1+) for MCP protocol implementation
+- **Express** (v5.2.1+) for HTTP server
+- **StreamableHTTPServerTransport** for HTTP-based MCP communication
 - **Native fetch API** for JIRA REST API calls (Node.js 20+)
+- **Zod** for schema validation
+- **dotenv** for environment variable management
+- **aikido-npm** for secure dependency installation
 
 ### Key Components
 
 #### JiraClient Class
 Handles all JIRA API communication and analysis:
-- API authentication using Basic Auth
+- API authentication using Bearer token
+- 30-second timeout protection
 - Issue search and retrieval
 - Various analysis methods (status, priority, type, assignee)
 - Report generation
 - Velocity calculations
 
-#### Tool Definitions
-Each tool is defined with:
-- Name and description
-- Input schema (parameters)
-- Handler function in the main request handler
+#### HTTP Server (Express)
+- CORS-enabled for cross-origin requests
+- Health check endpoint (`/health`)
+- MCP protocol endpoint (`/mcp`)
+- Credential extraction from headers or query params
+- Request logging for tool calls
+
+#### Tool Registration
+Each tool is registered using `server.registerTool()` with:
+- Tool name
+- Description and input schema (Zod)
+- Async handler function
 
 ## 📊 Example Use Cases
 
@@ -257,27 +309,55 @@ Use `jira_calculate_velocity` to track team performance.
 ## 🔐 Security Notes
 
 - **Never commit your API token** to version control
-- Use environment variables or secure credential storage
+- Credentials are passed per-request, not stored server-side
 - API tokens have the same permissions as your account
 - Consider creating a dedicated service account for automation
+- Use HTTPS in production to protect credentials in transit
+- Configure `CORS_ORIGIN` to restrict access to trusted domains
+- Tokens are logged only with last 4 characters for debugging
 
 ## 🐛 Troubleshooting
 
-### "Missing required environment variables"
-Make sure all three environment variables are set:
-- `JIRA_BASE_URL`
-- `JIRA_EMAIL`
-- `JIRA_API_TOKEN`
+### "Missing JIRA_BASE_URL in environment variables"
+Make sure `JIRA_BASE_URL` is set in your `.env` file:
+- `JIRA_BASE_URL=https://your-domain.atlassian.net`
+
+### "Missing JIRA credentials in request headers"
+Ensure your MCP client sends credentials on each request:
+- **Authorization** header: `Bearer YOUR_API_TOKEN`
+- **X-JIRA-Email** header: `your-email@company.com`
+
+Or use query parameters:
+- `?email=your-email@company.com&token=YOUR_API_TOKEN`
 
 ### "JIRA API Error (401)"
 - Check that your email is correct
 - Verify your API token is valid
 - Ensure you have access to the JIRA instance
+- Token should be passed without "Bearer" prefix in the actual token value
 
 ### "JIRA API Error (400)"
 - Check your JQL syntax
 - Some fields may not exist in your JIRA instance
 - Verify project keys and other identifiers
+
+### "JIRA API request timed out after 30 seconds"
+- Reduce `maxResults` parameter
+- Simplify your JQL query
+- Check JIRA instance availability
+
+### Testing the Server
+
+1. **Health Check**:
+   ```bash
+   curl http://localhost:3000/health
+   ```
+
+2. **Test MCP Endpoint**:
+   ```bash
+   npm run test
+   ```
+   This runs `test-init.js` which simulates the MCP initialization sequence.
 
 ## 📚 Additional Resources
 
