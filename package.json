@@ -1,0 +1,44 @@
+{
+  "name": "@jira/mcp-server",
+  "version": "1.0.0",
+  "description": "JIRA MCP Server - Analyze issues and create reports",
+  "main": "build/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=20.15.1"
+  },
+  "author": {
+    "name": "JIRA MCP Team"
+  },
+  "bin": {
+    "jira-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc && node build/index.js",
+    "watch": "tsc --watch",
+    "test": "node test-init.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "zod": "^4.2.1",
+    "zod-to-json-schema": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.15.1",
+    "typescript": "^5.8.2"
+  },
+  "keywords": [
+    "jira",
+    "mcp",
+    "analysis",
+    "reporting",
+    "model-context-protocol"
+  ]
+}
