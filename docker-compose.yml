@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  jira-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jira-mcp-server:latest
+    container_name: jira-mcp-server
+    ports:
+      - "3000:3000"
+    environment:
+      - JIRA_BASE_URL=${JIRA_BASE_URL}
+      - PORT=3000
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - jira-mcp-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  jira-mcp-network:
+    driver: bridge
